@@ -59,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
                 height: 18,
               ),
               Text(
-                "Got bored of your UT's? Got you covered!",
+                "Sign in to play!",
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
