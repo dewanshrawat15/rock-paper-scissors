@@ -105,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 DocumentSnapshot roomGameSnapshot = await gameRoomDocRef.get();
                 Map<String, dynamic> gameDetails = roomGameSnapshot.data();
                 String username = convertEmailToUsername(widget.email);
+                print(gameDetails.containsKey(username));
                 if(gameDetails.containsKey(username)){
                   Navigator.push(
                     context,
@@ -120,8 +121,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   gameDetails[username] = {
                     "score": 0
                   };
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (BuildContext context) => GameScreen(
+                        email: widget.email,
+                        roomCode: roomId,
+                      )
+                    )
+                  );
                   await gameRoomDocRef.set(gameDetails);
-                  // Navigator.push(context, route)
                 }
               },
             ),
@@ -224,6 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
                 };
                 await gameDoc.set(userGameDetails);
+                roundsController.clear();
                 Share.share("Hey\nJoin me in a game of rock paper scissors. Room code is " + newGameRoomCode.toString());
                 Navigator.pop(context);
               },

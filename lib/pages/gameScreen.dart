@@ -47,6 +47,42 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  handleResultScreenPush(Map<String, dynamic> gameCurrentData) async {
+    String winnerImage, winnerUsername, looserUsername, looserImage;
+    int playerScore = gameCurrentData[convertEmailToUsername(widget.email)]["score"];
+    List ks = gameCurrentData.keys.toList();
+    ks.remove("rounds");
+    ks.remove(convertEmailToUsername(widget.email));
+    int opponentScore = gameCurrentData[ks[0]]["score"];
+    var player = await FirebaseFirestore.instance.collection("users").doc(widget.email).get();
+    var playerData = player.data();
+    var opponent = await FirebaseFirestore.instance.collection("users").doc(convertUsernameToEmail(ks[0])).get();
+    var opponentData = opponent.data();
+    if(playerScore > opponentScore){
+      winnerImage = playerData["photoUrl"];
+      winnerUsername = convertEmailToUsername(playerData["email"]);
+      looserImage = opponentData["photoUrl"];
+      looserUsername = ks[0];
+    }
+    else{
+      winnerImage = opponentData["photoUrl"];
+      winnerUsername = ks[0];
+      looserImage = playerData["photoUrl"];
+      looserUsername = convertEmailToUsername(playerData["email"]);
+    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (BuildContext context) => ResultScreen(
+          winnerImage: winnerImage,
+          winnerUsername: winnerUsername,
+          looserUsername: looserUsername,
+          looserImage: looserImage
+        )
+      )
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -62,16 +98,21 @@ class _GameScreenState extends State<GameScreen> {
         builder: (BuildContext context, AsyncSnapshot snapshot){
           if(snapshot.hasData){
             Map<String, dynamic> gameCurrentData = snapshot.data.data();
-            bool hasOtherPlayerJoined = true;
+
+            if(gameCurrentData["rounds"] == 0){
+              handleResultScreenPush(gameCurrentData);
+            }
+
+            bool hasOtherPlayerJoined = false;
             List<String> keys = gameCurrentData.keys.toList();
             keys.remove(convertEmailToUsername(widget.email));
             keys.remove("rounds");
-            // if(keys.isEmpty){
-            //   hasOtherPlayerJoined = false;
-            // }
-            // else{
-            //   hasOtherPlayerJoined = true;
-            // }
+            if(keys.isEmpty){
+              hasOtherPlayerJoined = false;
+            }
+            else{
+              hasOtherPlayerJoined = true;
+            }
             String opponentUsername = keys[0];
             Widget playerMoveWidget, opponentMoveWidget;
             if(hasOtherPlayerJoined){
@@ -81,14 +122,86 @@ class _GameScreenState extends State<GameScreen> {
                 String playerMove, opponentMove;
                 playerMove = playerMoveDetails["move"];
                 opponentMove = opponentMoveDetails["move"];
-                // handle this logic
+                String playerResultString, opponentResultString;
+                int playerScore, opponentScore, rounds;
+                rounds = gameCurrentData["rounds"];
+                playerScore = playerMoveDetails["score"];
+                opponentScore = opponentMoveDetails["score"];
+                if(playerMove == "rock"){
+                  switch (opponentMove) {
+                    case "rock":
+                      playerResultString = "Draw";
+                      opponentResultString = "Draw";
+                      break;
+                    case "paper":
+                      playerResultString = "Lost to paper";
+                      opponentResultString = "Wham, paper wraps rock";
+                      opponentScore = opponentScore + 10;
+                      rounds = rounds - 1;
+                      break;
+                    case "scissors":
+                      playerResultString = "Boom, scissors - broken";
+                      opponentResultString = "Crushed by rock";
+                      playerScore = playerScore + 10;
+                      rounds = rounds - 1;
+                      break;
+                  }
+                }
+                if(playerMove == "paper"){
+                  switch (opponentMove) {
+                    case "rock":
+                      playerResultString = "Wham, paper wraps rock";
+                      opponentResultString = "Lost to paper";
+                      playerScore = playerScore + 10;
+                      rounds = rounds - 1;
+                      break;
+                    case "paper":
+                      playerResultString = "Draw";
+                      opponentResultString = "Draw";
+                      break;
+                    case "scissors":
+                      playerResultString = "Ouch, Sharp pointy scissors";
+                      opponentResultString = "Shredded paper to pieces";
+                      opponentScore = opponentScore + 10;
+                      rounds = rounds - 1;
+                      break;
+                  }
+                }
+                if(playerMove == "scissors"){
+                  switch (opponentMove) {
+                    case "rock":
+                      playerResultString = "Crushed by rock";
+                      opponentResultString = "Boom, scissors - broken";
+                      opponentScore = opponentScore + 10;
+                      rounds = rounds - 1;
+                      break;
+                    case "paper":
+                      playerResultString = "Shredded paper to pieces";
+                      opponentResultString = "Ouch, Sharp pointy scissors";
+                      playerScore = playerScore + 10;
+                      rounds = rounds - 1;
+                      break;
+                    case "scissors":
+                      playerResultString = "Draw";
+                      opponentResultString = "Draw";
+                      break;
+                  }
+                }
+                playerMoveDetails.remove("move");
+                opponentMoveDetails.remove("move");
+                playerMoveDetails["score"] = playerMoveDetails["score"] + playerScore;
+                opponentMoveDetails["score"] = opponentMoveDetails["score"] + opponentScore;
+                gameCurrentData[convertEmailToUsername(widget.email)] = playerMoveDetails;
+                gameCurrentData[opponentUsername] = opponentMoveDetails;
+                gameCurrentData["rounds"] = rounds;
+                FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameCurrentData);
                 playerMoveWidget = Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 18
                   ),
                   child: Text(
-                    "Computing score",
+                    playerResultString,
                     style: TextStyle(
                       fontSize: 24,
                       fontFamily: "Josefin Sans"
@@ -101,7 +214,7 @@ class _GameScreenState extends State<GameScreen> {
                     vertical: 18
                   ),
                   child: Text(
-                    "Computing score",
+                    opponentResultString,
                     style: TextStyle(
                       fontSize: 24,
                       fontFamily: "Josefin Sans"
