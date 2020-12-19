@@ -4,13 +4,10 @@ import 'resultScreen.dart';
 
 class GameScreen extends StatefulWidget {
 
-  final String name, email, imageUrl, username, roomId;
+  final String email, roomCode;
   GameScreen({
-    @required this.name,
     @required this.email,
-    @required this.imageUrl,
-    @required this.username,
-    @required this.roomId
+    @required this.roomCode
   });
 
   @override
@@ -19,356 +16,414 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
 
-  bool isPlayerA = false;
-  String opponentUsername, opponentImage;
+  bool hasLoaded = false;
+  Map<String, dynamic> playerMap = {};
+  Map<String, dynamic> opponentMap = {};
 
-  setOpponentImage(username) async{
-    var ref = await FirebaseFirestore.instance.collection("users").where("username", isEqualTo: username).get();
-    var opponentDoc = ref.docs[0].data();
-    opponentImage = opponentDoc["photoUrl"];
-    setState((){});
+  String convertEmailToUsername(String email){
+    String username = email.split("@")[0];
+    return username;
   }
 
-  setPlayerState(Map<String, dynamic> roomDetails) async{
-    if(roomDetails["rounds"] == 0){
-      var playerADoc = await FirebaseFirestore.instance.collection("users").where("username", isEqualTo: roomDetails["playerA"]).get();
-      var playerBDoc = await FirebaseFirestore.instance.collection("users").where("username", isEqualTo: roomDetails["playerB"]).get();
-      var playerADetails = playerADoc.docs[0].data();
-      var playerBDetails = playerBDoc.docs[0].data();
-      if(roomDetails["playerAScore"] > roomDetails["playerBScore"]){
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (BuildContext context) => ResultScreen(
-              winnerImage: playerADetails["photoUrl"],
-              winnerUsername: playerADetails["username"],
-              looserUsername: playerBDetails["username"],
-              looserImage: playerBDetails["photoUrl"]
-            )
-          )
-        );
-      }
-      else{
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (BuildContext context) => ResultScreen(
-              winnerImage: playerBDetails["photoUrl"],
-              winnerUsername: playerBDetails["username"],
-              looserUsername: playerADetails["username"],
-              looserImage: playerADetails["photoUrl"]
-            )
-          )
-        );
-      }
+  String convertUsernameToEmail(String username){
+    return username + "@gmail.com";
+  }
+
+  getUserDetails() async {
+    var gameRef = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).get();
+    Map<String, dynamic> gameDetails = gameRef.data();
+    List<String> keys = gameDetails.keys.toList();
+    keys.remove(convertEmailToUsername(widget.email));
+    keys.remove("rounds");
+    CollectionReference usersRef = FirebaseFirestore.instance.collection("users");
+    DocumentSnapshot playerDocSnapshot = await usersRef.doc(widget.email).get();
+    playerMap = playerDocSnapshot.data();
+    if(keys.length == 1){
+      DocumentSnapshot opponentDocSnapshot = await usersRef.doc().get();
+      opponentMap = opponentDocSnapshot.data();
     }
-    if(roomDetails["playerA"] == widget.username){
-      isPlayerA = true;
-      opponentUsername = roomDetails["playerB"];
-    }
-    if(roomDetails["playerB"] == widget.username){
-      isPlayerA = false;
-      opponentUsername = roomDetails["playerA"];
-    }
-    setOpponentImage(opponentUsername);
+    setState(() {
+      hasLoaded = true;
+    });
   }
 
   @override
   void initState() {
     super.initState();
-  }
-
-  calculateScore(String moveA, String moveB, int playerAScore, int playerBScore) async{
-    if(moveA == "rock" && moveB == "paper"){
-      playerBScore = playerBScore + 10;
-    }
-    if(moveB == "rock" && moveA == "paper"){
-      playerAScore = playerAScore + 10;
-    }
-    if(moveA == "paper" && moveB == "scissors"){
-      playerBScore = playerBScore + 10;
-    }
-    if(moveB == "paper" && moveA == "scissors"){
-      playerAScore = playerAScore + 10;
-    }
-    if(moveA == "scissors" && moveB == "rock"){
-      playerBScore = playerBScore + 10;
-    }
-    if(moveB == "scissors" && moveA == "rock"){
-      playerAScore = playerAScore + 10;
-    }
-    var doc = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomId).get();
-    var gameDetails = doc.data();
-    if(gameDetails.containsKey("playerAMove") && gameDetails.containsKey("playerBMove")){
-      gameDetails.remove("playerAMove");
-      gameDetails.remove("playerBMove");
-      gameDetails["playerAScore"] = playerAScore;
-      gameDetails["playerBScore"] = playerBScore;
-      gameDetails["rounds"] = gameDetails["rounds"].toDouble() - 1;
-      await Future.delayed(Duration(seconds: 2));
-      await FirebaseFirestore.instance.collection("rooms").doc(widget.roomId).set(gameDetails);
-    }
-  }
-
-  Widget returnPlayerPlayedMoveWidget(String move){
-    // print(move);
-    if(move == null){
-      return Text(
-        "Waiting for your response!",
-        style: TextStyle(
-          fontFamily: "Josefin Sans",
-          fontWeight: FontWeight.bold,
-          fontSize: 20
-        ),
-      );
-    }
-    else{
-      if(move == "rock"){
-        return Center(
-          child: CircleAvatar(
-            radius: 54,
-            backgroundImage: AssetImage(
-              "assets/images/rock.png"
-            ),
-          ),
-        );
-      }
-      else if(move == "scissors"){
-        return Center(
-          child: CircleAvatar(
-            radius: 54,
-            backgroundImage: AssetImage(
-              "assets/images/scissors.png"
-            ),
-          ),
-        );
-      }
-      else{
-        return Center(
-          child: CircleAvatar(
-            radius: 54,
-            backgroundImage: AssetImage(
-              "assets/images/paper.png"
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  setMove(String move) async{
-    Future.delayed(
-      Duration(
-        seconds: 3
-      )
-    );
-    var doc = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomId).get();
-    var gameDetails = doc.data();
-    if(isPlayerA){
-      gameDetails["playerAMove"] = move;
-    }
-    else{
-      gameDetails["playerBMove"] = move;
-    }
-    await FirebaseFirestore.instance.collection("rooms").doc(widget.roomId).set(gameDetails);
+    getUserDetails();
   }
 
   @override
   Widget build(BuildContext context) {
+    Size size = MediaQuery.of(context).size;
     return Scaffold(
-      body: StreamBuilder(
-        stream: FirebaseFirestore.instance.collection("rooms").doc(widget.roomId).snapshots(),
+      body: hasLoaded ? StreamBuilder(
+        stream: FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).snapshots(),
         builder: (BuildContext context, AsyncSnapshot snapshot){
           if(snapshot.hasData){
-            DocumentSnapshot details = snapshot.data;
-            setPlayerState(details.data());
-            var gameDetails = details.data();
-            int playerAScore = gameDetails["playerAScore"];
-            int playerBScore = gameDetails["playerBScore"];
-            var playerAMove;
-            var playerBMove;
-            bool playerAMoveStatus;
-            bool playerBMoveStatus;
-            if(gameDetails.containsKey("playerAMove")){
-              playerAMoveStatus = true;
-              playerAMove = gameDetails["playerAMove"];
-            }
-            else{
-              playerAMoveStatus = false;
-            }
-            if(gameDetails.containsKey("playerBMove")){
-              playerBMoveStatus = true;
-              playerBMove = gameDetails["playerBMove"];
-            }
-            else{
-              playerBMoveStatus = false;
-            }
-            if(playerAMoveStatus == true && playerBMoveStatus == true){
-              calculateScore(playerAMove, playerBMove, playerAScore, playerBScore);
-            }
-            return Container(
-              height: MediaQuery.of(context).size.height,
-              width: MediaQuery.of(context).size.width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: <Widget>[
-                      Padding(
-                        padding: EdgeInsets.only(
-                          right: 32
-                        ),
-                        child: Text(
-                          "Rounds left: " + gameDetails["rounds"].toInt().toString(),
-                          style: TextStyle(
-                            fontFamily: "Josefin Sans",
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold
-                          ),
+            Map<String, dynamic> gameCurrentData = snapshot.data.data();
+            bool hasOtherPlayerJoined = true;
+            List<String> keys = gameCurrentData.keys.toList();
+            keys.remove(convertEmailToUsername(widget.email));
+            keys.remove("rounds");
+            // if(keys.isEmpty){
+            //   hasOtherPlayerJoined = false;
+            // }
+            // else{
+            //   hasOtherPlayerJoined = true;
+            // }
+            String opponentUsername = keys[0];
+            Widget playerMoveWidget, opponentMoveWidget;
+            if(hasOtherPlayerJoined){
+              Map<String, dynamic> playerMoveDetails = gameCurrentData[convertEmailToUsername(widget.email)];
+              Map<String, dynamic> opponentMoveDetails = gameCurrentData[convertEmailToUsername(keys[0])];
+              if(playerMoveDetails.containsKey("move") && opponentMoveDetails.containsKey("move")){
+                String playerMove, opponentMove;
+                playerMove = playerMoveDetails["move"];
+                opponentMove = opponentMoveDetails["move"];
+                // handle this logic
+                playerMoveWidget = Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 18
+                  ),
+                  child: Text(
+                    "Computing score",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontFamily: "Josefin Sans"
+                    ),
+                  )
+                );
+                opponentMoveWidget = Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 18
+                  ),
+                  child: Text(
+                    "Computing score",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontFamily: "Josefin Sans"
+                    ),
+                  )
+                );
+              }
+              else{
+                if(playerMoveDetails.containsKey("move") && !opponentMoveDetails.containsKey("move")){
+                  String imgPath;
+                  switch (playerMoveDetails["move"]) {
+                    case "rock":
+                      imgPath = "assets/images/rock.png";
+                    break;
+                    case "paper":
+                      imgPath = "assets/images/paper.png";
+                    break;
+                    case "scissors":
+                      imgPath = "assets/images/scissors.png";
+                    break;
+                  }
+                  playerMoveWidget = CircleAvatar(
+                    radius: 32,
+                    backgroundImage: AssetImage(imgPath)
+                  );
+                  opponentMoveWidget = Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 18
+                    ),
+                    child: Text(
+                      "Waiting for opponent's move",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontFamily: "Josefin Sans"
+                      ),
+                    )
+                  );
+                }
+                else{
+                  if(!playerMoveDetails.containsKey("move") && opponentMoveDetails.containsKey("move")){
+                    playerMoveWidget = Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 18
+                      ),
+                      child: Text(
+                        "Waiting for your move",
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontFamily: "Josefin Sans"
                         ),
                       )
-                    ],
+                    );
+                    opponentMoveWidget = Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 18
+                      ),
+                      child: Text(
+                        "Opponent has played",
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontFamily: "Josefin Sans"
+                        ),
+                      )
+                    );
+                  }
+                  else{
+                    playerMoveWidget = Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 18
+                      ),
+                      child: Text(
+                        "Waiting for your move",
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontFamily: "Josefin Sans"
+                        ),
+                      )
+                    );
+                    opponentMoveWidget = Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 18
+                      ),
+                      child: Text(
+                        "Waiting for opponent's move",
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontFamily: "Josefin Sans"
+                        ),
+                      )
+                    );
+                  }
+                }
+              }
+            }
+            return hasOtherPlayerJoined ? SingleChildScrollView(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: size.height / 15,
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 32
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          "Rounds:" + gameCurrentData["rounds"].toString(),
+                          style: TextStyle(
+                            fontFamily: "Josefin Sans",
+                            fontSize: 25
+                          )
+                        )
+                      ],
+                    ),
                   ),
                   SizedBox(
-                    height: 32,
+                    height: 54,
                   ),
                   Center(
-                    child: Container(
-                      height: MediaQuery.of(context).size.height / 3,
-                      width: MediaQuery.of(context).size.width / 1.2,
-                      color: Colors.black12,
-                      child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 48
+                      ),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 24
+                        ),
+                        color: Colors.grey[300],
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: <Widget>[
-                                Padding(
-                                  padding: EdgeInsets.only(
-                                    right: 8,
-                                    top: 12
-                                  ),
-                                  child: Text(
-                                    isPlayerA ? "Points: " + playerAScore.toString() : "Points: " + playerBScore.toString(),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontFamily: "Josefin Sans",
-                                      fontWeight: FontWeight.bold
-                                    ),
-                                  ),
-                                )
-                              ],
-                            ),
-                            isPlayerA ? returnPlayerPlayedMoveWidget(playerAMove) : returnPlayerPlayedMoveWidget(playerBMove),
+                          children: [
                             Padding(
-                              padding: EdgeInsets.only(
-                                bottom: 6,
-                                left: 8,
-                                right: 8
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 20
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: <Widget>[
-                                  InkWell(
-                                    onTap: () async{
-                                      setMove("rock");
-                                    },
-                                    child: Padding(
-                                      padding: EdgeInsets.all(12.0),
-                                      child: CircleAvatar(
-                                        backgroundImage: AssetImage(
-                                          "assets/images/rock.png"
-                                        ),
-                                      ),
-                                    ),
+                                children: [
+                                  Text(
+                                    "@" + convertEmailToUsername(widget.email),
+                                    style: TextStyle(
+                                      fontFamily: "Josefin Sans",
+                                      fontSize: 20,
+                                      color: Colors.black
+                                    )
                                   ),
+                                  Text(
+                                    gameCurrentData[convertEmailToUsername(widget.email)]["score"].toString(),
+                                    style: TextStyle(
+                                      fontFamily: "Josefin Sans",
+                                      fontSize: 24,
+                                      color: Colors.black
+                                    )
+                                  )
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 32,),
+                            playerMoveWidget,
+                            SizedBox(height: 32,),
+                            Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 20
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
                                   InkWell(
-                                    onTap: () async{
-                                      setMove("paper");
+                                    onTap: () async {
+                                      String username = convertEmailToUsername(widget.email);
+                                      var docRef = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).get();
+                                      Map<String, dynamic> gameDet = docRef.data();
+                                      print(gameDet[username]);
+                                      if(!gameDet[username].containsKey("move")){
+                                        gameDet[username]["move"] = "rock";
+                                        await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameDet);
+                                      }
                                     },
-                                    child: Padding(
-                                      padding: EdgeInsets.all(12.0),
-                                      child: CircleAvatar(
-                                        backgroundImage: AssetImage(
-                                          "assets/images/paper.png"
-                                        ),
+                                    child: CircleAvatar(
+                                      radius: 21,
+                                      backgroundImage: AssetImage(
+                                        "assets/images/rock.png"
                                       ),
                                     ),
                                   ),
                                   InkWell(
                                     onTap: () async {
-                                      setMove("scissors");
+                                      String username = convertEmailToUsername(widget.email);
+                                      var docRef = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).get();
+                                      Map<String, dynamic> gameDet = docRef.data();
+                                      print(gameDet[username]);
+                                      if(!gameDet[username].containsKey("move")){
+                                        gameDet[username]["move"] = "paper";
+                                        await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameDet);
+                                      }
                                     },
-                                    child: Padding(
-                                      padding: EdgeInsets.all(12.0),
-                                      child: CircleAvatar(
-                                        backgroundImage: AssetImage(
-                                          "assets/images/scissors.png"
-                                        ),
+                                    child: CircleAvatar(
+                                      radius: 21,
+                                      backgroundImage: AssetImage(
+                                        "assets/images/paper.png"
+                                      ),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () async {
+                                      String username = convertEmailToUsername(widget.email);
+                                      var docRef = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).get();
+                                      Map<String, dynamic> gameDet = docRef.data();
+                                      print(gameDet[username]);
+                                      if(!gameDet[username].containsKey("move")){
+                                        gameDet[username]["move"] = "scissors";
+                                        await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameDet);
+                                      }
+                                    },
+                                    child: CircleAvatar(
+                                      radius: 21,
+                                      backgroundImage: AssetImage(
+                                        "assets/images/scissors.png"
                                       ),
                                     ),
                                   )
-                                ]
+                                ],
                               ),
-                            )
+                            ),
                           ],
-                        )
+                        ),
                       ),
                     ),
                   ),
                   SizedBox(
-                    height: 32,
+                    height: size.height / 8
                   ),
                   Center(
-                    child: Container(
-                      height: MediaQuery.of(context).size.height / 3,
-                      width: MediaQuery.of(context).size.width / 1.2,
-                      child: Center(
-                        child: isPlayerA ?
-                        playerAMoveStatus && playerBMoveStatus ? returnPlayerPlayedMoveWidget(playerBMove) : playerBMoveStatus ? Text(
-                          "Opponent played move",
-                          style: TextStyle(
-                            fontFamily: "Josefin Sans",
-                            fontWeight: FontWeight.bold
-                          ),
-                        ) : Text(
-                          "Waiting for opponents response",
-                          style: TextStyle(
-                            fontFamily: "Josefin Sans",
-                            fontWeight: FontWeight.bold
-                          ),
-                        )
-                          : playerAMoveStatus && playerBMoveStatus ? returnPlayerPlayedMoveWidget(playerAMove) : playerAMoveStatus ? Text(
-                            "Opponent played move",
-                            style: TextStyle(
-                              fontFamily: "Josefin Sans",
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 48
+                      ),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 24
+                        ),
+                        color: Colors.grey[300],
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 20
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "@" + opponentUsername,
+                                    style: TextStyle(
+                                      fontFamily: "Josefin Sans",
+                                      fontSize: 20,
+                                      color: Colors.black
+                                    )
+                                  ),
+                                  Text(
+                                    gameCurrentData[opponentUsername]["score"].toString(),
+                                    style: TextStyle(
+                                      fontFamily: "Josefin Sans",
+                                      fontSize: 24,
+                                      color: Colors.black
+                                    )
+                                  )
+                                ],
+                              ),
                             ),
-                          ) : Text(
-                            "Waiting for opponents response",
-                            style: TextStyle(
-                              fontFamily: "Josefin Sans",
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20
-                            ),
-                          )
-                      )
+                            SizedBox(height: 32,),
+                            opponentMoveWidget,
+                            SizedBox(height: 32,),
+                          ],
+                        ),
+                      ),
                     ),
                   )
                 ],
               ),
-            );
+            ) : WaitingForPlayerToJoin();
           }
           else{
-            return Center(
-              child: CircularProgressIndicator(),
-            );
+            return Center(child: CircularProgressIndicator());
           }
         },
+      ) : Center(
+        child: CircularProgressIndicator(),
+      )
+    );
+  }
+}
+
+class WaitingForPlayerToJoin extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height,
+      width: MediaQuery.of(context).size.width,
+      child: Column(
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height / 3,
+          ),
+          CircularProgressIndicator(),
+          SizedBox(
+            height: 32,
+          ),
+          Text(
+            "Waiting for other player to join",
+            style: TextStyle(
+              fontFamily: "Josefin Sans",
+              fontSize: 25
+            ),
+          )
+        ],
       ),
     );
   }

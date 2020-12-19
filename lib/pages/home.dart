@@ -2,8 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'gameScreen.dart';
+import 'package:share/share.dart';
 
 class HomeScreen extends StatefulWidget {
 
@@ -28,6 +28,11 @@ class _HomeScreenState extends State<HomeScreen> {
   TextEditingController roomIdController = TextEditingController();
   DocumentSnapshot doc;
   String playerRoomId;
+
+  String convertEmailToUsername(String email){
+    String username = email.split("@")[0];
+    return username;
+  }
 
   Future<void> showJoinRoomDialog() async{
     return showDialog<void>(
@@ -95,58 +100,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               onPressed: () async {
-                await setPersonDoc();
-                if(roomIdController.text.toString().length == 6){
-                  var roomId = roomIdController.text.toString();
-                  Navigator.pop(context);
-                  var userDetails = doc.data();
-                  List roomsList = userDetails["rooms"];
-                  if(roomsList.contains(roomId)){
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (BuildContext context) => GameScreen(
-                          name: widget.name,
-                          email: widget.email,
-                          imageUrl: widget.profileImageUrl,
-                          username: widget.username,
-                          roomId: roomId,
-                        )
+                var roomId = roomIdController.text.toString();
+                DocumentReference gameRoomDocRef = FirebaseFirestore.instance.collection("rooms").doc(roomId);
+                DocumentSnapshot roomGameSnapshot = await gameRoomDocRef.get();
+                Map<String, dynamic> gameDetails = roomGameSnapshot.data();
+                String username = convertEmailToUsername(widget.email);
+                if(gameDetails.containsKey(username)){
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (BuildContext context) => GameScreen(
+                        email: widget.email,
+                        roomCode: roomId,
                       )
-                    );
-                  }
-                  else{
-                    roomsList.add(roomId);
-                    userDetails["rooms"] = roomsList;
-                    Fluttertoast.showToast(
-                      msg: "Joining room, please wait",
-                      toastLength: Toast.LENGTH_LONG,
-                      gravity: ToastGravity.BOTTOM,
-                      timeInSecForIosWeb: 1,
-                      fontSize: 16.0
-                    );
-                    await FirebaseFirestore.instance.collection("users").doc(widget.email).set(userDetails);
-                    var roomDoc = await FirebaseFirestore.instance.collection("rooms").doc(roomId).get();
-                    var roomDetails = roomDoc.data();
-                    roomDetails["playerB"] = widget.username;
-                    roomDetails["playerBEmail"] = widget.email;
-                    roomDetails["playerAScore"] = 0;
-                    roomDetails["playerBScore"] = 0;
-                    await FirebaseFirestore.instance.collection("rooms").doc(roomId).set(roomDetails);
-                    Navigator.of(context, rootNavigator: true).pop();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (BuildContext context) => GameScreen(
-                          name: widget.name,
-                          email: widget.email,
-                          imageUrl: widget.profileImageUrl,
-                          username: widget.username,
-                          roomId: roomId,
-                        )
-                      )
-                    );
-                  }
+                    )
+                  );
+                }
+                else{
+                  gameDetails[username] = {
+                    "score": 0
+                  };
+                  await gameRoomDocRef.set(gameDetails);
+                  // Navigator.push(context, route)
                 }
               },
             ),
@@ -238,44 +213,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               onPressed: () async {
-                Navigator.pop(context);
-                setState((){});
-                if(roundsController.text.length >= 1){
-                  var rnd = Random();
-                  var next = rnd.nextDouble() * 1000000;
-                  while (next < 100000) {
-                    next *= 10;
+                Random randomSeedSource = Random();
+                var newGameRoomCode = 1000000 + randomSeedSource.nextInt(99999999);
+                var gameDoc = FirebaseFirestore.instance.collection("rooms").doc(newGameRoomCode.toString());
+                String username = convertEmailToUsername(widget.email);
+                Map<String, dynamic> userGameDetails = {
+                  "rounds": int.parse(roundsController.text.toString()),
+                  username: {
+                    "score": 0
                   }
-                  var roomId = next.toInt();
-                  var ref = FirebaseFirestore.instance.collection("rooms");
-                  Map<String, dynamic> roomDetails = {
-                    "playerA": widget.username,
-                    "playerAEmail": widget.email,
-                    "rounds": int.parse(roundsController.text),
-                    "roomId": roomId.toString()
-                  };
-                  await ref.doc(roomId.toString()).set(roomDetails);
-                  Map userDetails = doc.data();
-                  List roomList = userDetails["rooms"];
-                  roomList.add(roomId.toString());
-                  userDetails["rooms"] = roomList;
-                  await FirebaseFirestore.instance.collection("users").doc(widget.email).set(userDetails);                  
-                  setState(() {
-                    playerRoomId = roomId.toString();
-                  });
-                  Clipboard.setData(
-                    ClipboardData(
-                      text: "Room ID for Rock, Paper, Scissors is " + playerRoomId
-                    )
-                  );
-                  Fluttertoast.showToast(
-                    msg: "Room ID copied!",
-                    toastLength: Toast.LENGTH_LONG,
-                    gravity: ToastGravity.BOTTOM,
-                    timeInSecForIosWeb: 1,
-                    fontSize: 16.0
-                  );
-                }
+                };
+                await gameDoc.set(userGameDetails);
+                Share.share("Hey\nJoin me in a game of rock paper scissors. Room code is " + newGameRoomCode.toString());
+                Navigator.pop(context);
               },
             ),
             FlatButton(
@@ -328,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 96,
           ),
           InkWell(
-            onTap: (){
+            onTap: () async {
               showCreateRoomDialog();
             },
             child: ClipRRect(

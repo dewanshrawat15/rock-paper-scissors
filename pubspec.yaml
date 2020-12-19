@@ -15,7 +15,7 @@ dependencies:
   firebase_auth: any
   google_sign_in: any
   cloud_firestore: any
-  fluttertoast: any
+  share: any
 
 dev_dependencies:
   flutter_test:
