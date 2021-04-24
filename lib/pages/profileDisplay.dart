@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProfileDisplay extends StatelessWidget {
 
@@ -9,6 +8,10 @@ class ProfileDisplay extends StatelessWidget {
     @required this.picUrl,
     @required this.username
   });
+
+  String getBetterImageUrl(String url){
+    return url.replaceFirst("=s96-c", "=s400-c");
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,12 +43,12 @@ class ProfileDisplay extends StatelessWidget {
           child: Column(
             children: <Widget>[
               SizedBox(
-                height: MediaQuery.of(context).size.height / 3,
+                height: MediaQuery.of(context).size.height / 3.5,
               ),
               CircleAvatar(
                 radius: 64,
                 backgroundImage: NetworkImage(
-                  picUrl
+                  getBetterImageUrl(picUrl)
                 ),
               ),
               SizedBox(
