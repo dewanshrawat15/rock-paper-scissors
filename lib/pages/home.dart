@@ -105,8 +105,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 DocumentSnapshot roomGameSnapshot = await gameRoomDocRef.get();
                 Map<String, dynamic> gameDetails = roomGameSnapshot.data();
                 String username = convertEmailToUsername(widget.email);
-                print(gameDetails.containsKey(username));
                 if(gameDetails.containsKey(username)){
+                  Navigator.pop(context);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -121,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   gameDetails[username] = {
                     "score": 0
                   };
+                  Navigator.pop(context);
                   Navigator.push(
                     context,
                     MaterialPageRoute(

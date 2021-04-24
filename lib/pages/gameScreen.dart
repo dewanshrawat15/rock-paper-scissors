@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:rockpaperscissors/pages/playerWaitScreen.dart';
 import 'resultScreen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -109,6 +110,7 @@ class _GameScreenState extends State<GameScreen> {
             keys.remove("rounds");
             if(keys.isEmpty){
               hasOtherPlayerJoined = false;
+              return PlayerWaitScreen(size: size);
             }
             else{
               hasOtherPlayerJoined = true;
@@ -189,12 +191,18 @@ class _GameScreenState extends State<GameScreen> {
                 }
                 playerMoveDetails.remove("move");
                 opponentMoveDetails.remove("move");
-                playerMoveDetails["score"] = playerMoveDetails["score"] + playerScore;
-                opponentMoveDetails["score"] = opponentMoveDetails["score"] + opponentScore;
+                playerMoveDetails["score"] = playerScore;
+                opponentMoveDetails["score"] = opponentScore;
                 gameCurrentData[convertEmailToUsername(widget.email)] = playerMoveDetails;
                 gameCurrentData[opponentUsername] = opponentMoveDetails;
                 gameCurrentData["rounds"] = rounds;
-                FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameCurrentData);
+                Future.delayed(
+                  Duration(
+                    seconds: 1
+                  )
+                ).then((value){
+                  FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameCurrentData);
+                });
                 playerMoveWidget = Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: 24,
@@ -393,7 +401,6 @@ class _GameScreenState extends State<GameScreen> {
                                       String username = convertEmailToUsername(widget.email);
                                       var docRef = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).get();
                                       Map<String, dynamic> gameDet = docRef.data();
-                                      print(gameDet[username]);
                                       if(!gameDet[username].containsKey("move")){
                                         gameDet[username]["move"] = "rock";
                                         await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameDet);
@@ -411,7 +418,6 @@ class _GameScreenState extends State<GameScreen> {
                                       String username = convertEmailToUsername(widget.email);
                                       var docRef = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).get();
                                       Map<String, dynamic> gameDet = docRef.data();
-                                      print(gameDet[username]);
                                       if(!gameDet[username].containsKey("move")){
                                         gameDet[username]["move"] = "paper";
                                         await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameDet);
@@ -429,7 +435,6 @@ class _GameScreenState extends State<GameScreen> {
                                       String username = convertEmailToUsername(widget.email);
                                       var docRef = await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).get();
                                       Map<String, dynamic> gameDet = docRef.data();
-                                      print(gameDet[username]);
                                       if(!gameDet[username].containsKey("move")){
                                         gameDet[username]["move"] = "scissors";
                                         await FirebaseFirestore.instance.collection("rooms").doc(widget.roomCode).set(gameDet);

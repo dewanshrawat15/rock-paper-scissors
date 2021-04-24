@@ -10,6 +10,10 @@ class ResultScreen extends StatelessWidget {
     @required this.looserImage
   });
 
+  String getBetterImageUrl(String url){
+    return url.replaceFirst("=s96-c", "=s400-c");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,9 +38,9 @@ class ResultScreen extends StatelessWidget {
               ),
               child: CircleAvatar(
                 backgroundImage: NetworkImage(
-                  winnerImage
+                  getBetterImageUrl(winnerImage)
                 ),
-                radius: 36,
+                radius: 54,
               ),
             ),
             Text(
@@ -64,9 +68,9 @@ class ResultScreen extends StatelessWidget {
               ),
               child: CircleAvatar(
                 backgroundImage: NetworkImage(
-                  looserImage
+                  getBetterImageUrl(looserImage)
                 ),
-                radius: 36,
+                radius: 54,
               ),
             ),
             Text(
